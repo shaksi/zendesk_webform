@@ -1,0 +1,62 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the zendesk_webform module.
+ */
+
+/**
+ * Implements hook_schema().
+ *
+ * @ingroup zendesk_webform_
+ */
+function zendesk_webform_schema() {
+  $schema['zendesk_webform'] = array(
+    'description' => 'Stores information of extended content.',
+    'fields' => array(
+      'nid'    => array(
+        'description' => 'Node ID that the group is being assigned.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'vid'    => array(
+        'description' => 'Revision ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'zendesk_gid' => array(
+        'description' => 'Zendesk group ID, where form submission should go',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('vid'),
+    'indexes' => array(
+      'nid'   => array('nid'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ *
+ */
+function zendesk_webform_uninstall() {
+  // Simple DB query to get the names of our variables.
+  $results = db_select('variable', 'v')
+    ->fields('v', array('name'))
+    ->condition('name', 'zendesk_webform_%', 'LIKE')
+    ->execute();
+  // Loop through and delete each of our variables.
+  foreach ($results as $result) {
+    variable_del($result->name);
+  }
+}

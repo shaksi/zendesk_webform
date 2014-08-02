@@ -1,0 +1,5 @@
+name = Zendesk Webform
+description = Creates association between zendesk groups and webforms 1:Many
+package = Zendesk
+configure = admin/config/services/zendesk
+core = 7.x

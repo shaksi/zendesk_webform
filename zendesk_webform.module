@@ -1,0 +1,389 @@
+<?php
+function zendesk_webform_menu() {
+  // Admin Settings.
+  $items['admin/config/services/zendesk'] = array(
+    'title' => 'Zendesk settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('zendesk_webform_admin_settings'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer site configuration'),
+    'description' => 'Global configuration of zendesk.',
+    'file' => 'zendesk_webform.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  return $items;
+}
+
+
+/** RIPPED OUT OF ZENDESK.MODULE TO LIMIT MODULE BLOATING
+ * Performs a call to the Zendesk API with the given data.
+ *
+ * @param array $data
+ *   The data to be sent to the API endpoint.
+ * @param string $command
+ *   The command to call at the endpoint. Will be a filename like "tickets.json"
+ * or similar.
+ * See http://developer.zendesk.com/documentation/rest_api/tickets.html and
+ * https://support.zendesk.com/entries/21562288-Creating-a-Custom-HTML-Form-for-Ticket-Submission
+ *
+ * @return string
+ *   The json response string.
+ */
+function zendesk_webform_api_call($data, $command, $type="POST") {
+  $json = json_encode($data);
+  $zendesk_key = variable_get('zendesk_webform_api_key', '');
+  $zendesk_url = variable_get('zendesk_webform_api_url', '');
+  $zendesk_user = variable_get('zendesk_webform_api_user', '');
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
+  curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
+  curl_setopt($ch, CURLOPT_URL, $zendesk_url . '/api/v2/' . $command);
+  curl_setopt($ch, CURLOPT_USERPWD, "$zendesk_user/token:$zendesk_key");
+  curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $type);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-type: application/json'));
+  curl_setopt($ch, CURLOPT_USERAGENT, 'MozillaXYZ/1.0');
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+  $output = curl_exec($ch);
+  curl_close($ch);
+  return json_decode($output);
+}
+/**
+ * Implements hook_form_alter().
+ *
+ * By implementing this hook, we're able to modify any form. We'll only make
+ * changes to two types: a node's content type configuration and edit forms.
+ *
+ * We need to have a way for administrators to indicate which content types
+ * should have our rating field added. This is done by inserting radios in
+ * the node's content type configuration page.
+ *
+ * Changes made by this hook will be shown when editing the settings of any
+ * content type.
+ *
+ * Optionally, hook_form_FORM_ID_alter() could be used with the function name
+ * zendesk_webform_form_node_type_form_alter
+ */
+function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
+
+  //add the zendesk group selection to the webform node.
+  //When that form is submitted we use the groupID to forward to the right
+  //zendesk group
+  if ($form_id == 'webform_node_form') {
+    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+      $node = $form['#node'];
+      $default = isset($node->zendesk_webform_group) ? $node->zendesk_webform_group : '';
+      $parent  = variable_get('zendesk_webform_group');
+      $zendesk_groups = zendesk_webform_list_group_field($default, $parent);
+      $zendesk_groups['zendesk']['zendesk_group']['#description'] =
+       t('Which Zendesk group should this forms submission go to');
+      array_push($form, $zendesk_groups);
+    }
+  }
+
+  if ($form_id == 'webform_components_form') {
+    $node = $form['#node'];
+    $options = array();
+    foreach ($node->webform['components'] as $cid => $component) {
+      $form['components'][$cid]['zendesk_fid'] = array(
+        '#type' => 'select',
+        '#title' => t('Zendesk'),
+        '#options' => array(
+          0 => t('No'),
+          1 => t('Yes'),
+        ),
+        '#default_value' => '',
+      );
+    }
+  }
+  dpm($form);
+
+}
+
+/**
+ * Implements hook_theme_registry_alter - lets override the webform
+ * component form from this module
+ */
+function zendesk_webform_theme_registry_alter(&$theme_registry) {
+  dpm($theme_registry);
+  $theme_registry['webform_components_form']['theme path'] = drupal_get_path('module','zendesk_webform');
+  $theme_registry['webform_components_form']['function'] = 'zendesk_webform_components_form_theme';
+}
+
+/**
+ * Implements hook_node_load().
+ *
+ * Loads the rating information if available for any of the nodes in the
+ * argument list.
+ */
+function zendesk_webform_node_load($nodes, $types) {
+  // We can use $types to figure out if we need to process any of these nodes.
+  $our_types = array();
+  foreach ($types as $type) {
+    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+      $our_types[] = $type;
+    }
+  }
+
+  // Now $our_types contains all the types from $types that we want
+  // to deal with. If it's empty, we can safely return.
+  if (!count($our_types)) {
+    return;
+  }
+
+  // Now we need to make a list of revisions based on $our_types
+  foreach ($nodes as $node) {
+    // We are using the revision id instead of node id.
+    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+      $vids[] = $node->vid;
+    }
+  }
+  // Check if we should load rating for any of the nodes.
+  if (!isset($vids) || !count($vids)) {
+    return;
+  }
+
+  // When we read, we don't care about the node->nid; we look for the right
+  // revision ID (node->vid).
+  $result = db_select('zendesk_webform', 'e')
+  ->fields('e', array('nid', 'vid', 'zendesk_gid'))
+  ->where('e.vid IN (:vids)', array(':vids' => $vids))
+  ->execute();
+
+  foreach ($result as $record) {
+    $nodes[$record->nid]->zendesk_webform_group = $record->zendesk_gid;
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ *
+ * As a new node is being inserted into the database, we need to do our own
+ * database inserts.
+ */
+function zendesk_webform_node_insert($node) {
+  if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+    // Notice that we are ignoring any revision information using $node->nid
+    db_insert('zendesk_webform')
+    ->fields(array(
+        'nid' => $node->nid,
+        'vid' => $node->vid,
+        'zendesk_gid' => $node->zendesk_webform_group,
+    ))
+    ->execute();
+  }
+}
+
+/**
+ * Implements hook_node_delete().
+ *
+ * When a node is deleted, we need to remove all related records from our table,
+ * including all revisions. For the delete operations we use node->nid.
+ */
+function zendesk_webform_node_delete($node) {
+  // Notice that we're deleting even if the content type has no rating enabled.
+  db_delete('zendesk_webform')
+    ->condition('nid', $node->nid)
+    ->execute();
+}
+
+/**
+ * Implements hook_node_update().
+ *
+ * As an existing node is being updated in the database, we need to do our own
+ * database updates.
+ *
+ * This hook is called when an existing node has been changed. We can't simply
+ * update, since the node may not have a rating saved, thus no
+ * database field. So we first check the database for a rating. If there is one,
+ * we update it. Otherwise, we call zendesk_webform_node_insert() to create one.
+ */
+function zendesk_webform_node_update($node) {
+  if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+    // Check first if this node has a saved rating.
+    $zgid = db_select('zendesk_webform', 'e')
+      ->fields('e', array(
+        'zendesk_gid',
+      ))
+      ->where('e.vid = (:vid)', array(':vid' => $node->vid))
+      ->execute()->fetchField();
+
+    if ($zgid) {
+      // Node has been rated before.
+      db_update('zendesk_webform')
+        ->fields(array('zendesk_gid' => $node->zendesk_webform_group))
+        ->condition('vid', $node->vid)
+        ->execute();
+    }
+    else {
+      // Node was not previously rated, so insert a new rating in database.
+      zendesk_webform_node_insert($node);
+    }
+  }
+}
+
+
+/**
+ * helper function to create group list form
+ */
+function zendesk_webform_list_group_field($default_value,$parent_group="") {
+  $response = zendesk_webform_api_call('', 'groups.json', 'GET');
+  //iterate through the groups names and create parent list out of it
+  if (count($response->groups) > 0) {
+    foreach ($response->groups as $id => $group) {
+      @list($tld, $subgroup) = explode('.',$group->name);
+      //we will only use forms that have a subgroup
+      //any others we can ignore
+      if ($parent_group) {
+        if ($tld == $parent_group) {
+          $group_tlds[$group->id] = $subgroup;
+        }
+      }
+      else {
+        if ($subgroup) {
+          $group_tlds[$tld] = $tld;
+        }
+      }
+    }
+  }
+  $form['zendesk'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Zendesk Group'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#weight' => -1,
+  );
+  $form['zendesk']['zendesk_webform_group'] = array(
+    '#type' => 'select',
+    '#title' => t(''),
+    '#options' => $group_tlds,
+    '#default_value' => $default_value,
+    '#description' => t('Select the default country group for zendesk.'),
+  );
+  return $form;
+}
+
+
+
+/**
+ * Theme the node components form. overrding the webform in order to add .
+ * zendesk field in the table
+ */
+function zendesk_webform_components_form_theme($variables) {
+$form = $variables['form'];
+
+$form['components']['#attached']['library'][] = array('webform', 'admin');
+
+// TODO: Attach these. See http://drupal.org/node/732022.
+drupal_add_tabledrag('webform-components', 'order', 'sibling', 'webform-weight');
+drupal_add_tabledrag('webform-components', 'match', 'parent', 'webform-pid', 'webform-pid', 'webform-cid');
+
+$node = $form['#node'];
+
+$header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), t('Zendesk'), array('data' => t('Operations'), 'colspan' => 4));
+$rows = array();
+
+// Add a row containing form elements for a new item.
+unset($form['add']['name']['#title'], $form['add_type']['#description']);
+$form['add']['name']['#attributes']['rel'] = t('New component name');
+$form['add']['name']['#attributes']['class'] = array('webform-default-value');
+$form['add']['cid']['#attributes']['class'] = array('webform-cid');
+$form['add']['pid']['#attributes']['class'] = array('webform-pid');
+$form['add']['weight']['#attributes']['class'] = array('webform-weight');
+$row_data = array(
+  drupal_render($form['add']['name']),
+  drupal_render($form['add']['type']),
+
+  '',
+  drupal_render($form['add']['mandatory']),
+  drupal_render($form['add']['cid']) . drupal_render($form['add']['pid']) . drupal_render($form['add']['weight']),
+  array('colspan' => 3, 'data' => drupal_render($form['add']['add'])),
+);
+$add_form = array('data' => $row_data, 'class' => array('draggable', 'webform-add-form'));
+$form_rendered = FALSE;
+
+if (!empty($node->webform['components'])) {
+  $component_tree = array();
+  $page_count = 1;
+  _webform_components_tree_build($node->webform['components'], $component_tree, 0, $page_count);
+  $component_tree = _webform_components_tree_sort($component_tree);
+  // Build the table rows.
+  function _webform_components_form_rows($node, $cid, $component, $level, &$form, &$rows, &$add_form) {
+    // Create presentable values.
+    if (drupal_strlen($component['value']) > 30) {
+      $component['value'] = drupal_substr($component['value'], 0, 30);
+      $component['value'] .= '...';
+    }
+    $component['value'] = check_plain($component['value']);
+
+    // Remove individual titles from the mandatory and weight fields.
+    unset($form['components'][$cid]['mandatory']['#title']);
+    unset($form['components'][$cid]['pid']['#title']);
+    unset($form['components'][$cid]['weight']['#title']);
+    unset($form['components'][$cid]['zendesk_fid']['#title']);
+    // Add special classes for weight and parent fields.
+    $form['components'][$cid]['cid']['#attributes']['class'] = array('webform-cid');
+    $form['components'][$cid]['pid']['#attributes']['class'] = array('webform-pid');
+    $form['components'][$cid]['weight']['#attributes']['class'] = array('webform-weight');
+
+    // Build indentation for this row.
+    $indents = '';
+    for ($n = 1; $n <= $level; $n++) {
+      $indents .= '<div class="indentation">&nbsp;</div>';
+    }
+
+    // Add each component to a table row.
+    $row_data = array(
+      $indents . filter_xss($component['name']),
+      $form['add']['type']['#options'][$component['type']],
+      ($component['value'] == '') ? '-' : $component['value'],
+      drupal_render($form['components'][$cid]['mandatory']),
+      drupal_render($form['components'][$cid]['cid']) . drupal_render($form['components'][$cid]['pid']) . drupal_render($form['components'][$cid]['weight']),
+drupal_render($form['components'][$cid]['zendesk_fid']),
+      l(t('Edit'), 'node/' . $node->nid . '/webform/components/' . $cid, array('query' => drupal_get_destination())),
+      l(t('Clone'), 'node/' . $node->nid . '/webform/components/' . $cid . '/clone', array('query' => drupal_get_destination())),
+      l(t('Delete'), 'node/' . $node->nid . '/webform/components/' . $cid . '/delete', array('query' => drupal_get_destination())),
+    );
+    $row_class = array('draggable');
+    if (!webform_component_feature($component['type'], 'group')) {
+      $row_class[] = 'tabledrag-leaf';
+    }
+    if ($component['type'] == 'pagebreak') {
+      $row_class[] = 'tabledrag-root';
+      $row_class[] = 'webform-pagebreak';
+      $row_data[0] = array('class' => array('webform-pagebreak'), 'data' => $row_data[0]);
+    }
+    $rows[] = array('data' => $row_data, 'class' => $row_class);
+    if (isset($component['children']) && is_array($component['children'])) {
+      foreach ($component['children'] as $cid => $component) {
+        _webform_components_form_rows($node, $cid, $component, $level + 1, $form, $rows, $add_form);
+      }
+    }
+
+    // Add the add form if this was the last edited component.
+    if (isset($_GET['cid']) && $component['cid'] == $_GET['cid'] && $add_form) {
+      $add_form['data'][0] = $indents . $add_form['data'][0];
+      $rows[] = $add_form;
+      $add_form = FALSE;
+    }
+  }
+  foreach ($component_tree['children'] as $cid => $component) {
+    _webform_components_form_rows($node, $cid, $component, 0, $form, $rows, $add_form);
+  }
+}
+else {
+  $rows[] = array(array('data' => t('No Components, add a component below.'), 'colspan' => 9));
+}
+
+// Append the add form if not already printed.
+if ($add_form) {
+  $rows[] = $add_form;
+}
+
+$output = '';
+$output .= theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'webform-components')));
+$output .= drupal_render_children($form);
+return $output;
+}
