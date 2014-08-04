@@ -79,9 +79,12 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
     $enabled_fields = new stdClass();
     $enabled_fields->ticket = variable_get('zendesk_webform_allowed_fields_ticket',FALSE);
     $enabled_fields->user = variable_get('zendesk_webform_allowed_fields_user', FALSE);
+
+    //loop through both user fields and ticket fields,
+    //comparing the fields IDs that have been saved to the
+    //list of available fields we recieved from zendes.
+    //As we only have enabled IDs,this is th best way to get field names
     foreach (array('user','ticket') as $field_type) {
-      dpm($fields->{$field_type});
-      dpm($enabled_fields->{$field_type});
       if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
         foreach ($enabled_fields->{$field_type} as $id => $enabled) {
           if ($enabled > 0) {
@@ -90,18 +93,17 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
         }
       }
     }
-dpm($options);
+    //for each of the webform, show a select list of the zendesk fields
+    //this is where we create direct association
     foreach ($node->webform['components'] as $cid => $component) {
       $form['components'][$cid]['zendesk_fid'] = array(
         '#type' => 'select',
         '#title' => t('Zendesk'),
         '#options' => $options,
-        '#default_value' => '',
+        '#default_value' => array('24105892'),//default to description
       );
     }
   }
-  dpm($form);
-
 }
 
 /**
