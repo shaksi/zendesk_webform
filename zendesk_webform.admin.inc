@@ -92,6 +92,7 @@ function zendesk_webform_admin_settings() {
         '#type' => 'checkboxes',
         '#title' => t('User fields'),
         '#options' => $fields->user,
+        '#default_value' => variable_get('zendesk_webform_allowed_fields_user', FALSE),
         '#description' => t('This is list of all the fields available for zendesk user'),
       );
 
@@ -99,6 +100,7 @@ function zendesk_webform_admin_settings() {
         '#type' => 'checkboxes',
         '#title' => t('Ticket fields'),
         '#options' => $fields->ticket,
+        '#default_value' => variable_get('zendesk_webform_allowed_fields_ticket', FALSE),
         '#description' => t('This is list of all the fields available for zendesk ticket'),
       );
     }
