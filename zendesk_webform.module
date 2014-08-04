@@ -16,7 +16,8 @@ function zendesk_webform_menu() {
 }
 
 
-/** RIPPED OUT OF ZENDESK.MODULE TO LIMIT MODULE BLOATING
+/**
+ * RIPPED OUT OF ZENDESK_FORMS.MODULE TO LIMIT MODULE BLOATING (look into later)
  * Performs a call to the Zendesk API with the given data.
  *
  * @param array $data
@@ -52,19 +53,6 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
 }
 /**
  * Implements hook_form_alter().
- *
- * By implementing this hook, we're able to modify any form. We'll only make
- * changes to two types: a node's content type configuration and edit forms.
- *
- * We need to have a way for administrators to indicate which content types
- * should have our rating field added. This is done by inserting radios in
- * the node's content type configuration page.
- *
- * Changes made by this hook will be shown when editing the settings of any
- * content type.
- *
- * Optionally, hook_form_FORM_ID_alter() could be used with the function name
- * zendesk_webform_form_node_type_form_alter
  */
 function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
 
@@ -86,14 +74,28 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
   if ($form_id == 'webform_components_form') {
     $node = $form['#node'];
     $options = array();
+    $fields = _zendesk_webform_fields_cleanup();
+    dpm($fields);
+    $enabled_fields = new stdClass();
+    $enabled_fields->ticket = variable_get('zendesk_webform_allowed_fields_ticket',FALSE);
+    $enabled_fields->user = variable_get('zendesk_webform_allowed_fields_user', FALSE);
+    foreach (array('user','ticket') as $field_type) {
+      dpm($fields->{$field_type});
+      dpm($enabled_fields->{$field_type});
+      if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
+        foreach ($enabled_fields->{$field_type} as $id => $enabled) {
+          if ($enabled > 0) {
+            $options[$id] = $fields->{$field_type}[$id];
+          }
+        }
+      }
+    }
+dpm($options);
     foreach ($node->webform['components'] as $cid => $component) {
       $form['components'][$cid]['zendesk_fid'] = array(
         '#type' => 'select',
         '#title' => t('Zendesk'),
-        '#options' => array(
-          0 => t('No'),
-          1 => t('Yes'),
-        ),
+        '#options' => $options,
         '#default_value' => '',
       );
     }
@@ -229,7 +231,8 @@ function zendesk_webform_node_update($node) {
  * helper function to create group list form
  */
 function zendesk_webform_list_group_field($default_value,$parent_group="") {
-  $response = zendesk_webform_api_call('', 'groups.json', 'GET');
+  $response = unserialize(variable_get('zendesk_webform_country_groups', FALSE));
+  $group_tlds =  array();
   //iterate through the groups names and create parent list out of it
   if (count($response->groups) > 0) {
     foreach ($response->groups as $id => $group) {
@@ -252,7 +255,7 @@ function zendesk_webform_list_group_field($default_value,$parent_group="") {
     '#type' => 'fieldset',
     '#title' => t('Zendesk Group'),
     '#collapsible' => TRUE,
-    '#collapsed' => TRUE,
+    '#collapsed' => FALSE,
     '#weight' => -1,
   );
   $form['zendesk']['zendesk_webform_group'] = array(
@@ -386,4 +389,24 @@ $output = '';
 $output .= theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('id' => 'webform-components')));
 $output .= drupal_render_children($form);
 return $output;
+}
+
+
+
+function _zendesk_webform_fields_cleanup() {
+  $user =  unserialize(variable_get('zendesk_webform_user_fields', FALSE));
+  $ticket = unserialize(variable_get('zendesk_webform_ticket_fields', FALSE));
+  $fields = new stdClass();
+  //iterate through the user fields
+  if ($user->count >0) {
+    foreach($user->user_fields as $f){
+      $fields->user[$f->id] = $f->title;
+    }
+  }
+  if ($ticket->count >0) {
+    foreach($ticket->ticket_fields as $f){
+      $fields->ticket[$f->id] = $f->title;
+    }
+  }
+  return $fields;
 }
