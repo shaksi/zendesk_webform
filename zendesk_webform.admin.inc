@@ -17,7 +17,7 @@ function zendesk_webform_admin_settings() {
   $form['zendesk_webform_api_enabled'] = array(
     '#title' => t('Enable Zendesk for Webforms'),
     '#type' => 'radios',
-    '#default_value' => variable_get('zendesk_webform_api_enabled', 0),
+    '#default_value' => variable_get('zendesk_webform_api_enabled', FALSE),
     '#options' => array(t('No'),t('Yes')),
   );
   $form['zendesk_api'] = array(
@@ -91,16 +91,16 @@ function zendesk_webform_admin_settings() {
       $form['zendesk_fields']['zendesk_webform_allowed_fields_user']  = array(
         '#type' => 'checkboxes',
         '#title' => t('User fields'),
-        '#options' => $fields->user,
-        '#default_value' => variable_get('zendesk_webform_allowed_fields_user', FALSE),
+        '#options' => (array)$fields->user,
+        '#default_value' => variable_get('zendesk_webform_allowed_fields_user', array()),
         '#description' => t('This is list of all the fields available for zendesk user'),
       );
 
       $form['zendesk_fields']['zendesk_webform_allowed_fields_ticket']  = array(
         '#type' => 'checkboxes',
         '#title' => t('Ticket fields'),
-        '#options' => $fields->ticket,
-        '#default_value' => variable_get('zendesk_webform_allowed_fields_ticket', FALSE),
+        '#options' => (array)$fields->ticket,
+        '#default_value' => variable_get('zendesk_webform_allowed_fields_ticket', array()),
         '#description' => t('This is list of all the fields available for zendesk ticket'),
       );
     }

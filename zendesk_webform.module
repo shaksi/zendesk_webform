@@ -71,7 +71,7 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
     }
   }
 
-  if ($form_id == 'webform_components_form') {
+  if ($form_id == 'webform_components_form' && variable_get('zendesk_webform_api_enabled', FALSE)) {
     $node = $form['#node'];
     $options = array();
     $fields = _zendesk_webform_fields_cleanup();
@@ -86,24 +86,45 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
     //As we only have enabled IDs,this is th best way to get field names
     foreach (array('user','ticket') as $field_type) {
       if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
-        foreach ($enabled_fields->{$field_type} as $id => $enabled) {
+        foreach ((array)$enabled_fields->{$field_type} as $id => $enabled) {
           if ($enabled > 0) {
             $options[$id] = $fields->{$field_type}[$id];
           }
         }
       }
     }
+
     //for each of the webform, show a select list of the zendesk fields
     //this is where we create direct association
     foreach ($node->webform['components'] as $cid => $component) {
       $form['components'][$cid]['zendesk_fid'] = array(
         '#type' => 'select',
         '#title' => t('Zendesk'),
-        '#options' => $options,
-        '#default_value' => array('24105892'),//default to description
+        '#options' => (count($options)>0)?$options:array(0=>'NA'),
+        '#default_value' => ($component['zendesk_fid'])?$component['zendesk_fid']:'24105892',//default to description
       );
     }
+    array_unshift($form['#submit'], 'zendesk_webform_component_submit');
   }
+}
+
+
+function zendesk_webform_component_submit($form, &$form_state) {
+
+  $node = node_load($form_state['values']['nid']);
+dpm($form_state);
+  // Update all mandatory and weight values.
+  $changes = FALSE;
+  foreach ($node->webform['components'] as $cid => $component) {
+    if ($component['zendesk_fid'] != $form_state['values']['components'][$cid]['zendesk_fid'] ) {
+      $changes = TRUE;
+      $node->webform['components'][$cid]['zendesk_fid'] =     $form_state['values']['components'][$cid]['zendesk_fid'];
+    }
+  }
+  if ($changes) {
+    node_save($node);
+  }
+
 }
 
 /**
@@ -111,7 +132,6 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
  * component form from this module
  */
 function zendesk_webform_theme_registry_alter(&$theme_registry) {
-  dpm($theme_registry);
   $theme_registry['webform_components_form']['theme path'] = drupal_get_path('module','zendesk_webform');
   $theme_registry['webform_components_form']['function'] = 'zendesk_webform_components_form_theme';
 }
@@ -141,24 +161,43 @@ function zendesk_webform_node_load($nodes, $types) {
   foreach ($nodes as $node) {
     // We are using the revision id instead of node id.
     if (variable_get('zendesk_webform_api_enabled', FALSE)) {
-      $vids[] = $node->vid;
+      $nids[] = $node->nid;
+      //set the default components zfid as 0
+      foreach ((array)$node->webform['components'] as $cid => $component) {
+        $node->webform['components'][$cid]['zendesk_fid'] = 0;
+      }
     }
   }
-  // Check if we should load rating for any of the nodes.
-  if (!isset($vids) || !count($vids)) {
-    return;
-  }
+
 
   // When we read, we don't care about the node->nid; we look for the right
   // revision ID (node->vid).
-  $result = db_select('zendesk_webform', 'e')
-  ->fields('e', array('nid', 'vid', 'zendesk_gid'))
-  ->where('e.vid IN (:vids)', array(':vids' => $vids))
+  $result = db_select('zendesk_webform_node', 'e')
+  ->fields('e', array('nid', 'vid', 'zgid'))
+  ->where('e.nid IN (:nids)', array(':nids' => $nids))
   ->execute();
 
   foreach ($result as $record) {
-    $nodes[$record->nid]->zendesk_webform_group = $record->zendesk_gid;
+    $nodes[$record->nid]->zendesk_webform_group = $record->zgid;
   }
+  dpm($result);
+
+  //set up the default field id (surely there is an easier way of doing this)
+
+
+  //see if there is zfids available.
+  $component = db_select('zendesk_webform_component', 'e')
+  ->fields('e', array('nid', 'cid', 'zfid'))
+  ->where('e.nid IN (:nids)', array(':nids' => $nids))
+  ->execute();
+
+  //if there are any components and zfid, make the link now.
+  foreach ($component as $crecord) {
+    $nodes[$record->nid]->webform['components'][$crecord->cid]['zendesk_fid'] = $crecord->zfid;
+
+  }
+
+
 }
 
 /**
@@ -170,13 +209,28 @@ function zendesk_webform_node_load($nodes, $types) {
 function zendesk_webform_node_insert($node) {
   if (variable_get('zendesk_webform_api_enabled', FALSE)) {
     // Notice that we are ignoring any revision information using $node->nid
-    db_insert('zendesk_webform')
+    db_insert('zendesk_webform_node')
     ->fields(array(
         'nid' => $node->nid,
         'vid' => $node->vid,
-        'zendesk_gid' => $node->zendesk_webform_group,
+        'zgid' => $node->zendesk_webform_group,
     ))
     ->execute();
+
+    foreach ($node->webform['components'] as $cid => $component) {
+      $zfids[] = array(
+          'nid' => $node->nid,
+          'cid' => $cid,
+          'zfid' => $component['zendesk_fid'],
+      );
+    }
+
+    $query = db_insert('zendesk_webform_component')->fields(array('nid','cid', 'zfid'));
+
+    foreach ($zfids as $zfid) {
+      $query->values($zfid);
+    }
+    $query->execute();
   }
 }
 
@@ -188,7 +242,10 @@ function zendesk_webform_node_insert($node) {
  */
 function zendesk_webform_node_delete($node) {
   // Notice that we're deleting even if the content type has no rating enabled.
-  db_delete('zendesk_webform')
+  db_delete('zendesk_webform_node')
+    ->condition('nid', $node->nid)
+    ->execute();
+  db_delete('zendesk_webform_component')
     ->condition('nid', $node->nid)
     ->execute();
 }
@@ -206,25 +263,8 @@ function zendesk_webform_node_delete($node) {
  */
 function zendesk_webform_node_update($node) {
   if (variable_get('zendesk_webform_api_enabled', FALSE)) {
-    // Check first if this node has a saved rating.
-    $zgid = db_select('zendesk_webform', 'e')
-      ->fields('e', array(
-        'zendesk_gid',
-      ))
-      ->where('e.vid = (:vid)', array(':vid' => $node->vid))
-      ->execute()->fetchField();
-
-    if ($zgid) {
-      // Node has been rated before.
-      db_update('zendesk_webform')
-        ->fields(array('zendesk_gid' => $node->zendesk_webform_group))
-        ->condition('vid', $node->vid)
-        ->execute();
-    }
-    else {
-      // Node was not previously rated, so insert a new rating in database.
+      zendesk_webform_node_delete($node);
       zendesk_webform_node_insert($node);
-    }
   }
 }
 
@@ -287,8 +327,15 @@ drupal_add_tabledrag('webform-components', 'match', 'parent', 'webform-pid', 'we
 
 $node = $form['#node'];
 
-$header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), t('Zendesk'), array('data' => t('Operations'), 'colspan' => 4));
+$header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), array('data' => t('Operations'), 'colspan' => 4));
 $rows = array();
+
+//if api is enabled, lets add zendesk column to the webform_component page.
+if (variable_get('zendesk_webform_api_enabled', FALSE)){
+  $header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), t('Zendesk'), array('data' => t('Operations'), 'colspan' => 4));
+  $rows = array();
+}
+
 
 // Add a row containing form elements for a new item.
 unset($form['add']['name']['#title'], $form['add_type']['#description']);
@@ -401,12 +448,12 @@ function _zendesk_webform_fields_cleanup() {
   $fields = new stdClass();
   //iterate through the user fields
   if ($user->count >0) {
-    foreach($user->user_fields as $f){
+    foreach((array)$user->user_fields as $f){
       $fields->user[$f->id] = $f->title;
     }
   }
   if ($ticket->count >0) {
-    foreach($ticket->ticket_fields as $f){
+    foreach((array)$ticket->ticket_fields as $f){
       $fields->ticket[$f->id] = $f->title;
     }
   }

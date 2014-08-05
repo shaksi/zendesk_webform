@@ -11,7 +11,7 @@
  * @ingroup zendesk_webform_
  */
 function zendesk_webform_schema() {
-  $schema['zendesk_webform'] = array(
+  $schema['zendesk_webform_node'] = array(
     'description' => 'Stores information of extended content.',
     'fields' => array(
       'nid'    => array(
@@ -28,7 +28,7 @@ function zendesk_webform_schema() {
         'not null' => TRUE,
         'default' => 0,
       ),
-      'zendesk_gid' => array(
+      'zgid' => array(
         'description' => 'Zendesk group ID, where form submission should go',
         'type' => 'int',
         'unsigned' => TRUE,
@@ -38,6 +38,37 @@ function zendesk_webform_schema() {
     ),
     'primary key' => array('vid'),
     'indexes' => array(
+      'nid'   => array('nid'),
+    ),
+  );
+
+  $schema['zendesk_webform_component'] = array(
+    'description' => 'Stores information of extended content.',
+    'fields' => array(
+      'nid'    => array(
+        'description' => 'Node ID that the group is being assigned.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'cid' => array(
+        'description' => 'Webform component ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'zfid' => array(
+        'description' => 'Zendesk ticket/user field ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'cid'   => array('cid'),
       'nid'   => array('nid'),
     ),
   );
