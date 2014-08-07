@@ -485,10 +485,12 @@ function _zendesk_webform_fields_cleanup() {
 function zendesk_webform_ticket_submit($form, &$form_state) {
   $zendesk_fields = _zendesk_webform_fields_cleanup();
   $values  = $form_state['values']['submitted'];
+  $node = $form['#node'];
+  //set the group
   foreach($form_state['webform']['component_tree']['children'] as $components) {
     $zfid = $components['zendesk_fid'];
     $cname =$components['form_key'];
-    if (empty($zendesk_fields->user[$zfid])) {
+    if (isset($zendesk_fields->user[$zfid])) {
       if ($zfid =='name' || $zfid =='email'){
         $ticket['requester'][$zfid] = $values[$cname];
       }
@@ -507,9 +509,13 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
   }
+  $ticket['group_id'] = $node->zendesk_webform_group;
+print_r($ticket);
+
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
-
+print_r($response);
+exit;
   if (isset($response->error)) {
     watchdog('zendes_webform', t('An error happened while sending form values to zendesk message. Error:  %error.'), array('%error' => $response->error));
   }
