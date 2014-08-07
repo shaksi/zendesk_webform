@@ -61,8 +61,8 @@ function zendesk_webform_schema() {
       ),
       'zfid' => array(
         'description' => 'Zendesk ticket/user field ID',
-        'type' => 'int',
-        'unsigned' => TRUE,
+        'type' => 'varchar',
+        'length' => 124,
         'not null' => TRUE,
         'default' => 0,
       ),

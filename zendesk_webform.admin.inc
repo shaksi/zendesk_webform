@@ -114,21 +114,21 @@ function zendesk_webform_admin_settings() {
  * Cache userfields and tickets to save us
  * from hitting zendesk api unnecessarily (should go into cron.)
  */
-function zendesk_webform_cache_fields() {
+function zendesk_webform_cache_fields($clear=FALSE) {
   //get list of current user_fields and cache them
-  if (!variable_get('zendesk_webform_user_fields', FALSE)) {
+  if (!variable_get('zendesk_webform_user_fields', FALSE) || $clear) {
     $user_fields = zendesk_webform_api_call('', 'user_fields.json','GET');
     variable_set('zendesk_webform_user_fields', serialize($user_fields));
   }
 
   //get a list of current ticket fields and cache them
-  if (!variable_get('zendesk_webform_ticket_fields', FALSE)) {
+  if (!variable_get('zendesk_webform_ticket_fields', FALSE) || $clear) {
     $ticket_fields = zendesk_webform_api_call('', 'ticket_fields.json','GET');
     variable_set('zendesk_webform_ticket_fields', serialize($ticket_fields));
   }
 
   //get a list of current country groups and cache them.
-  if (!variable_get('zendesk_webform_country_groups', FALSE)) {
+  if (!variable_get('zendesk_webform_country_groups', FALSE) || $clear) {
     $country_groups = zendesk_webform_api_call('', 'groups.json','GET');
     variable_set('zendesk_webform_country_groups', serialize($country_groups));
   }

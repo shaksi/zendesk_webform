@@ -55,7 +55,6 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
  * Implements hook_form_alter().
  */
 function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
-
   //add the zendesk group selection to the webform node.
   //When that form is submitted we use the groupID to forward to the right
   //zendesk group
@@ -75,11 +74,9 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
     $node = $form['#node'];
     $options = array();
     $fields = _zendesk_webform_fields_cleanup();
-    dpm($fields);
     $enabled_fields = new stdClass();
     $enabled_fields->ticket = variable_get('zendesk_webform_allowed_fields_ticket',FALSE);
     $enabled_fields->user = variable_get('zendesk_webform_allowed_fields_user', FALSE);
-
     //loop through both user fields and ticket fields,
     //comparing the fields IDs that have been saved to the
     //list of available fields we recieved from zendes.
@@ -87,7 +84,7 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
     foreach (array('user','ticket') as $field_type) {
       if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
         foreach ((array)$enabled_fields->{$field_type} as $id => $enabled) {
-          if ($enabled > 0) {
+          if ($enabled) {
             $options[$id] = $fields->{$field_type}[$id];
           }
         }
@@ -101,10 +98,14 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
         '#type' => 'select',
         '#title' => t('Zendesk'),
         '#options' => (count($options)>0)?$options:array(0=>'NA'),
-        '#default_value' => ($component['zendesk_fid'])?$component['zendesk_fid']:'24105892',//default to description
+        '#default_value' => ($component['zendesk_fid'])?$component['zendesk_fid']:'description',//default to description
       );
     }
     array_unshift($form['#submit'], 'zendesk_webform_component_submit');
+  }
+
+  if (preg_match("/webform_client_form_/i", $form_id)) {
+    array_unshift($form['#submit'], 'zendesk_webform_ticket_submit');
   }
 }
 
@@ -112,7 +113,6 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
 function zendesk_webform_component_submit($form, &$form_state) {
 
   $node = node_load($form_state['values']['nid']);
-dpm($form_state);
   // Update all mandatory and weight values.
   $changes = FALSE;
   foreach ($node->webform['components'] as $cid => $component) {
@@ -180,7 +180,6 @@ function zendesk_webform_node_load($nodes, $types) {
   foreach ($result as $record) {
     $nodes[$record->nid]->zendesk_webform_group = $record->zgid;
   }
-  dpm($result);
 
   //set up the default field id (surely there is an easier way of doing this)
 
@@ -448,14 +447,72 @@ function _zendesk_webform_fields_cleanup() {
   $fields = new stdClass();
   //iterate through the user fields
   if ($user->count >0) {
+    //insert name and email as they are core fields
+    //that dont get shown in the fields list
+    $fields->user["name"]  = "User: Name";
+    $fields->user["email"] = "User: Email";
     foreach((array)$user->user_fields as $f){
-      $fields->user[$f->id] = $f->title;
+      $fields->user[$f->id] = "User: ".$f->title;
     }
   }
   if ($ticket->count >0) {
-    foreach((array)$ticket->ticket_fields as $f){
-      $fields->ticket[$f->id] = $f->title;
+    foreach((array)$ticket->ticket_fields as $f) {
+      //other than non removable fields use id
+      //default fields we can use their name.
+      $id = ($f->removable)? $f->id: $f->type;
+      $fields->ticket[$id] = "Ticket: ".$f->title;
     }
   }
   return $fields;
+}
+
+
+/**
+ * Submit handler for the create ticket form.
+ *
+ * @ingroup forms
+ */
+function zendesk_webform_ticket_submit($form, &$form_state) {
+  $zendesk_fields = _zendesk_webform_fields_cleanup();
+  $values  = $form_state['values']['submitted'];
+  print_r($values);
+  foreach($form_state['webform']['component_tree']['children'] as $components) {
+    $zfid = $components['zendesk_fid'];
+    $cname =$components['form_key'];
+    if ($zendesk_fields->user[$zfid]) {
+      if ($zfid =='name' || $zfid =='email'){
+        $ticket['requester'][$zfid] = $values[$cname];
+      }
+      else {
+        $ticket['requester']['user_fields']['usr_gen_city'] =  $values[$cname];
+      }
+    }
+    else {
+      if (is_numeric($zfid)){
+        // $ticket['custom_fields'][$zfid] =  strtolower($values[$cname]);
+        $zval = strtolower($values[$cname]);
+        $ticket['custom_fields'][] = array('id'=>$zfid, 'value'=>$zval);
+      }
+      else {
+        $ticket[$zfid] = $values[$cname];
+      }
+    }
+  }
+  print_r($ticket);
+  // Wrap the ticket array in yet another array and call the API.
+  $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
+  print_r($response);
+  exit;
+  if (!isset($response->error)) {
+    drupal_set_message(t('Your message has been sent'));
+  }
+  else {
+    drupal_set_message(t('An error happened while sending the message.'), 'error');
+  }
+  exit;
+}
+
+function zendesk_webform_cron() {
+  module_load_include('inc', 'zendesk_webform', 'zendesk_webform.admin');
+  return zendesk_webform_cache_fields(TRUE);
 }
