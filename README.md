@@ -5,9 +5,5 @@ Use drupal webforms to submit zendesk tickets. Build relationship between forms 
 
 
 TODO
--Write cron job to clean up the user_fields/tickets_fields/groups cache.
--Admin settings: default_values for the fields are currently not set
--Admin settings: what should be enabled by default (look at core ticket/user fields)
+-Currently zendesk fields work with 1 to 1 relationship, need to look into 1 to many and how to combine webform field values into one zendesk field.
 -Admin settings: theme Zendesk Fields checkboxes into a table
--Webform: define table for building relationship between webform fields & zendesk fields
--Webform: hook_submit for webforms, currently tickets are not submitted to zendesk.
