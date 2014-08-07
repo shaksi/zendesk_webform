@@ -478,7 +478,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
   foreach($form_state['webform']['component_tree']['children'] as $components) {
     $zfid = $components['zendesk_fid'];
     $cname =$components['form_key'];
-    if ($zendesk_fields->user[$zfid]) {
+    if (empty($zendesk_fields->user[$zfid])) {
       if ($zfid =='name' || $zfid =='email'){
         $ticket['requester'][$zfid] = $values[$cname];
       }
