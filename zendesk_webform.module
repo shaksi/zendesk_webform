@@ -452,7 +452,7 @@ function _zendesk_webform_fields_cleanup() {
     $fields->user["name"]  = "User: Name";
     $fields->user["email"] = "User: Email";
     foreach((array)$user->user_fields as $f){
-      $fields->user[$f->id] = "User: ".$f->title;
+      $fields->user[$f->key] = "User: ".$f->title;
     }
   }
   if ($ticket->count >0) {
@@ -475,7 +475,6 @@ function _zendesk_webform_fields_cleanup() {
 function zendesk_webform_ticket_submit($form, &$form_state) {
   $zendesk_fields = _zendesk_webform_fields_cleanup();
   $values  = $form_state['values']['submitted'];
-  print_r($values);
   foreach($form_state['webform']['component_tree']['children'] as $components) {
     $zfid = $components['zendesk_fid'];
     $cname =$components['form_key'];
@@ -484,7 +483,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
         $ticket['requester'][$zfid] = $values[$cname];
       }
       else {
-        $ticket['requester']['user_fields']['usr_gen_city'] =  $values[$cname];
+        $ticket['requester']['user_fields'][$zfid] =  $values[$cname];
       }
     }
     else {
@@ -498,18 +497,12 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
   }
-  print_r($ticket);
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
-  print_r($response);
-  exit;
-  if (!isset($response->error)) {
-    drupal_set_message(t('Your message has been sent'));
+
+  if (isset($response->error)) {
+    watchdog('zendes_webform', t('An error happened while sending form values to zendesk message. Error:  %error.'), array('%error' => $response->error));
   }
-  else {
-    drupal_set_message(t('An error happened while sending the message.'), 'error');
-  }
-  exit;
 }
 
 function zendesk_webform_cron() {
