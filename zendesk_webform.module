@@ -329,8 +329,8 @@ $node = $form['#node'];
 $header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), array('data' => t('Operations'), 'colspan' => 4));
 $rows = array();
 
-//if api is enabled, lets add zendesk column to the webform_component page.
-if (variable_get('zendesk_webform_api_enabled', FALSE)){
+//if api is enabled and groupID is set, lets add zendesk column to the webform_component page.
+if (variable_get('zendesk_webform_api_enabled', FALSE) && $node->zendesk_webform_group >0){
   $header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), t('Zendesk'), array('data' => t('Operations'), 'colspan' => 4));
   $rows = array();
 }
