@@ -15,6 +15,16 @@ function zendesk_webform_menu() {
   return $items;
 }
 
+/**
+ * Implements hook_permission().
+ */
+function zendesk_webform_permission() {
+  return array(
+    'administer zendesk webform' => array(
+      'title' => t('Administer Zendesk Webform configuration'),
+    ),
+  );
+}
 
 /**
  * RIPPED OUT OF ZENDESK_FORMS.MODULE TO LIMIT MODULE BLOATING (look into later)
