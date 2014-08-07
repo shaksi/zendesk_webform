@@ -6,7 +6,7 @@ function zendesk_webform_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('zendesk_webform_admin_settings'),
     'access callback' => 'user_access',
-    'access arguments' => array('administer site configuration'),
+    'access arguments' => array('administer zendesk webform'),
     'description' => 'Global configuration of zendesk.',
     'file' => 'zendesk_webform.admin.inc',
     'type' => MENU_NORMAL_ITEM,
