@@ -61,7 +61,7 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
   curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 
   //if proxy is set lets tunnel through it
-  if ($conf['proxy_server']) {
+  if (isSet($conf['proxy_server'])) {
     $usrpass = $conf['proxy_username'].':'.$conf['proxy_password'];
     curl_setopt($ch, CURLOPT_HEADER, false);
     curl_setopt($ch, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
@@ -507,8 +507,13 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     $zfid = $components['zendesk_fid'];
     $cname =$components['form_key'];
     if (isset($zendesk_fields->user[$zfid])) {
-
-      if ($zfid =='name' || $zfid =='email'){
+      //name can have multiple value so for now we will make it
+      //space seperated
+      if ($zfid =='name'){
+        $ticket['requester'][$zfid] .= " ".$values[$cname];
+        trim($ticket['requester'][$zfid]);
+      }
+      else if ($zfid =='email') {
         $ticket['requester'][$zfid] = $values[$cname];
       }
       else {
@@ -517,9 +522,11 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     }
     else {
       if (is_numeric($zfid)){
-        // $ticket['custom_fields'][$zfid] =  strtolower($values[$cname]);
         $zval = strtolower($values[$cname]);
         $ticket['custom_fields'][] = array('id'=>$zfid, 'value'=>$zval);
+      }
+      else if ($zfid =='description') { //description can have multiple values
+        $ticket[$zfid] .= $values[$cname]."\n";
       }
       else {
         $ticket[$zfid] = $values[$cname];
@@ -529,7 +536,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
   $ticket['group_id'] = $node->zendesk_webform_group;
 
   // Wrap the ticket array in yet another array and call the API.
-  $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
+  // $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
 
   if (isset($response->error)) {
     watchdog('zendes_webform', t('An error happened while sending form values to zendesk message. Error:  %error.'), array('%error' => $response->error));
