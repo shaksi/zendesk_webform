@@ -387,7 +387,7 @@ if (!empty($node->webform['components'])) {
   _webform_components_tree_build($node->webform['components'], $component_tree, 0, $page_count);
   $component_tree = _webform_components_tree_sort($component_tree);
   // Build the table rows.
-  function _webform_components_form_rows($node, $cid, $component, $level, &$form, &$rows, &$add_form) {
+  function _zendesk_webform_components_form_rows($node, $cid, $component, $level, &$form, &$rows, &$add_form) {
     // Create presentable values.
     if (drupal_strlen($component['value']) > 30) {
       $component['value'] = drupal_substr($component['value'], 0, 30);
@@ -435,7 +435,7 @@ drupal_render($form['components'][$cid]['zendesk_fid']),
     $rows[] = array('data' => $row_data, 'class' => $row_class);
     if (isset($component['children']) && is_array($component['children'])) {
       foreach ($component['children'] as $cid => $component) {
-        _webform_components_form_rows($node, $cid, $component, $level + 1, $form, $rows, $add_form);
+        _zendesk_webform_components_form_rows($node, $cid, $component, $level + 1, $form, $rows, $add_form);
       }
     }
 
@@ -447,7 +447,7 @@ drupal_render($form['components'][$cid]['zendesk_fid']),
     }
   }
   foreach ($component_tree['children'] as $cid => $component) {
-    _webform_components_form_rows($node, $cid, $component, 0, $form, $rows, $add_form);
+    _zendesk_webform_components_form_rows($node, $cid, $component, 0, $form, $rows, $add_form);
   }
 }
 else {
