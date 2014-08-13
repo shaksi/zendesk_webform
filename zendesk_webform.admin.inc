@@ -100,7 +100,7 @@ function zendesk_webform_admin_settings() {
         '#type' => 'checkboxes',
         '#title' => t('Ticket fields'),
         '#options' => (array)$fields->ticket,
-        '#default_value' => variable_get('zendesk_webform_allowed_fields_ticket', array('subject', 'description')),
+        '#default_value' => variable_get('zendesk_webform_allowed_fields_ticket', array('subject', 'description', 'tags')),
         '#description' => t('This is list of all the fields available for zendesk ticket'),
       );
     }

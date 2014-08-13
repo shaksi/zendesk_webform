@@ -172,7 +172,7 @@ function zendesk_webform_node_load($nodes, $types) {
   // We can use $types to figure out if we need to process any of these nodes.
   $our_types = array();
   foreach ($types as $type) {
-    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+    if (variable_get('zendesk_webform_api_enabled',FALSE) && $type=='webform') {
       $our_types[] = $type;
     }
   }
@@ -185,13 +185,10 @@ function zendesk_webform_node_load($nodes, $types) {
 
   // Now we need to make a list of revisions based on $our_types
   foreach ($nodes as $node) {
-    // We are using the revision id instead of node id.
-    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
-      $nids[] = $node->nid;
-      //set the default components zfid as 0
-      foreach ((array)$node->webform['components'] as $cid => $component) {
-        $node->webform['components'][$cid]['zendesk_fid'] = 0;
-      }
+  // We are using the revision id instead of node id.
+    //set the default components zfid as 0
+    foreach ((array)$node->webform['components'] as $cid => $component) {
+      $node->webform['components'][$cid]['zendesk_fid'] = 0;
     }
   }
 
@@ -232,7 +229,7 @@ function zendesk_webform_node_load($nodes, $types) {
  * database inserts.
  */
 function zendesk_webform_node_insert($node) {
-  if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+  if (variable_get('zendesk_webform_api_enabled',FALSE) && $node->type="webform") {
     // Notice that we are ignoring any revision information using $node->nid
     db_insert('zendesk_webform_node')
     ->fields(array(
@@ -287,7 +284,7 @@ function zendesk_webform_node_delete($node) {
  * we update it. Otherwise, we call zendesk_webform_node_insert() to create one.
  */
 function zendesk_webform_node_update($node) {
-  if (variable_get('zendesk_webform_api_enabled', FALSE)) {
+  if (variable_get('zendesk_webform_api_enabled', FALSE) && $node->type="webform") {
       zendesk_webform_node_delete($node);
       zendesk_webform_node_insert($node);
   }
@@ -482,6 +479,7 @@ function _zendesk_webform_fields_cleanup() {
     }
   }
   if ($ticket->count >0) {
+    $fields->ticket_fields["tags"] = "Ticket: Tags";
     foreach((array)$ticket->ticket_fields as $f) {
       //other than non removable fields use id
       //default fields we can use their name.
@@ -521,12 +519,15 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
     else {
-      if (is_numeric($zfid)){
+      if ($zfid =='description') { //description can have multiple values
+        $ticket[$zfid] .= $values[$cname]."\n";
+      }
+      else if ($zfid =='tags') { //description can have multiple values
+        $ticket[$zfid][]= $values[$cname];
+      }
+      else if (is_numeric($zfid)){
         $zval = strtolower($values[$cname]);
         $ticket['custom_fields'][] = array('id'=>$zfid, 'value'=>$zval);
-      }
-      else if ($zfid =='description') { //description can have multiple values
-        $ticket[$zfid] .= $values[$cname]."\n";
       }
       else {
         $ticket[$zfid] = $values[$cname];
@@ -534,6 +535,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     }
   }
   $ticket['group_id'] = $node->zendesk_webform_group;
+  $ticket['via'] = array("channel"=> "web");
 
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
