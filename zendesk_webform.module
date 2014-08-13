@@ -479,7 +479,7 @@ function _zendesk_webform_fields_cleanup() {
     }
   }
   if ($ticket->count >0) {
-    $fields->ticket_fields["tags"] = "Ticket: Tags";
+    $fields->ticket["tags"] = "Ticket: Tags";
     foreach((array)$ticket->ticket_fields as $f) {
       //other than non removable fields use id
       //default fields we can use their name.
