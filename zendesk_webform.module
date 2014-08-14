@@ -6,7 +6,7 @@ function zendesk_webform_menu() {
     'title' => 'Zendesk settings',
     'description' => 'Configurate the zendesk API.',
     'page callback' => 'zendesk_webform_admin_languages',
-    'access arguments' => array('administer zendesk configuration'),
+    'access arguments' => array('administer zendesk webform'),
     'file' => 'zendesk_webform.admin.inc',
     'weight' => 6,
     'type' => MENU_LOCAL_TASK,
