@@ -291,15 +291,8 @@ function zendesk_webform_list_group_field($default_value,$parent_group="") {
       @list($tld, $subgroup) = explode('.',$group->name);
       //we will only use forms that have a subgroup
       //any others we can ignore
-      if ($parent_group) {
-        if ($tld == $parent_group) {
-          $group_tlds[$group->id] = $subgroup;
-        }
-      }
-      else {
-        if ($subgroup) {
-          $group_tlds[$tld] = $tld;
-        }
+      if ($subgroup) {
+        $group_tlds[$tld][$group->id] = $subgroup;
       }
     }
   }
