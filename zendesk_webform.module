@@ -2,15 +2,47 @@
 
 function zendesk_webform_menu() {
   // Admin Settings.
-  $items['admin/config/services/zendesk'] = array(
+  $items['admin/config/content/webform/zendesk'] = array(
     'title' => 'Zendesk settings',
+    'description' => 'Configurate the zendesk API.',
+    'page callback' => 'zendesk_webform_admin_languages',
+    'access arguments' => array('administer zendesk configuration'),
+    'file' => 'zendesk_webform.admin.inc',
+    'weight' => 6,
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  $items['admin/config/content/webform/zendesk/settings'] = array(
+    'title' => 'Global Settings',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('zendesk_webform_admin_settings'),
-    'access callback' => 'user_access',
     'access arguments' => array('administer zendesk webform'),
     'description' => 'Global configuration of zendesk.',
     'file' => 'zendesk_webform.admin.inc',
-    'type' => MENU_NORMAL_ITEM,
+    'weight' => 2,
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  $items['admin/config/content/webform/default'] = array(
+    'title' => 'Webform settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  $items['admin/config/content/webform/zendesk/default'] = array(
+    'title' => 'Country settings',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  $items['admin/config/content/webform/zendesk/languages/%'] = array(
+    'title' => 'Country settings',
+    'title callback' => 'zendesk_webform_admin_config_title',
+    'title arguments' => array(6),
+    'description' => 'Configure a zendesk language.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('zendesk_webform_language_admin_config_form', 6),
+    'access arguments' => array('administer zendesk webform'),
+    'file' => 'zendesk_webform.admin.inc',
+    'type' => MENU_CALLBACK,
   );
 
   return $items;
@@ -25,6 +57,14 @@ function zendesk_webform_permission() {
       'title' => t('Administer Zendesk Webform configuration'),
     ),
   );
+}
+
+function zendesk_webform_admin_config_title($lang) {
+  $languages = language_list('enabled');
+  if (isset($languages[1][$lang])) {
+    return t('Zendesk @lang', array('@lang' => $languages[1][$lang]->name));
+  }
+  return t('Zendesk unknown');
 }
 
 /**
@@ -106,6 +146,7 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
   curl_close($ch);
   return json_decode($output);
 }
+
 /**
  * Implements hook_form_alter().
  */
@@ -113,61 +154,86 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
   //add the zendesk group selection to the webform node.
   //When that form is submitted we use the groupID to forward to the right
   //zendesk group
-  if ($form_id == 'webform_node_form') {
-    if (variable_get('zendesk_webform_api_enabled', FALSE)) {
-      $node = $form['#node'];
+  if ($form_id == 'webform_configure_form') {
+    $node = $form['#node'];
+    if (zendesk_webform_language_api_enabled($node)) {
+      array_unshift($form['#submit'], 'zendesk_webform_configure_form_submit');
+
       $default = isset($node->zendesk_webform_group) ? $node->zendesk_webform_group : '';
-      $parent  = variable_get('zendesk_webform_group');
-      $zendesk_groups = zendesk_webform_list_group_field($default, $parent);
+
+      $zendesk_groups = zendesk_webform_list_group_field($default);
       $zendesk_groups['zendesk']['zendesk_group']['#description'] =
        t('Which Zendesk group should this forms submission go to');
       array_push($form, $zendesk_groups);
     }
   }
 
-  if ($form_id == 'webform_components_form'
-    && variable_get('zendesk_webform_api_enabled', FALSE)
-    && isset($form['#node']->zendesk_webform_group) && $form['#node']->zendesk_webform_group) {
-    $form['#theme'] = 'zendesk_webform_components_form';
-
+  if ($form_id == 'webform_components_form') {
     $node = $form['#node'];
-    $options = array();
-    $fields = _zendesk_webform_fields_cleanup();
-    $enabled_fields = new stdClass();
-    $enabled_fields->ticket = variable_get('zendesk_webform_allowed_fields_ticket',FALSE);
-    $enabled_fields->user = variable_get('zendesk_webform_allowed_fields_user', FALSE);
-    //loop through both user fields and ticket fields,
-    //comparing the fields IDs that have been saved to the
-    //list of available fields we recieved from zendes.
-    //As we only have enabled IDs,this is th best way to get field names
-    foreach (array('user','ticket') as $field_type) {
-      if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
-        foreach ((array)$enabled_fields->{$field_type} as $id => $enabled) {
-          if ($enabled) {
-            $options[$id] = $fields->{$field_type}[$id];
+    if (zendesk_webform_api_enabled($node)) {
+      $form['#theme'] = 'zendesk_webform_components_form';
+      $node = $form['#node'];
+      $defaults = variable_get('zendesk_api', array());
+      $lang = $node->language;
+
+      $options = array();
+      $fields = _zendesk_webform_fields_cleanup();
+
+      $enabled_fields = new stdClass();
+      $enabled_fields->ticket = $defaults[$lang]['fields']['zendesk_webform_allowed_fields_ticket'];
+      $enabled_fields->user = $defaults[$lang]['fields']['zendesk_webform_allowed_fields_user'];
+      //loop through both user fields and ticket fields,
+      //comparing the fields IDs that have been saved to the
+      //list of available fields we recieved from zendes.
+      //As we only have enabled IDs,this is th best way to get field names
+      foreach (array('user','ticket') as $field_type) {
+        if (count($fields->{$field_type}) > 0 && count($enabled_fields->{$field_type})>0 ) {
+          foreach ((array)$enabled_fields->{$field_type} as $id => $enabled) {
+            if ($enabled) {
+              $options[$id] = $fields->{$field_type}[$id];
+            }
           }
         }
       }
-    }
 
-    //for each of the webform, show a select list of the zendesk fields
-    //this is where we create direct association
-    foreach ($node->webform['components'] as $cid => $component) {
-      $form['components'][$cid]['zendesk_fid'] = array(
-        '#type' => 'select',
-        '#title' => t('Zendesk'),
-        '#options' => array(0 => 'None') + $options,
-        '#default_value' => (isset($component['extra']['zendesk_fid']))?$component['extra']['zendesk_fid']:'description',//default to description
-      );
+      //for each of the webform, show a select list of the zendesk fields
+      //this is where we create direct association
+      foreach ($node->webform['components'] as $cid => $component) {
+        $form['components'][$cid]['zendesk_fid'] = array(
+          '#type' => 'select',
+          '#title' => t('Zendesk'),
+          '#options' => array(0 => 'None') + $options,
+          '#default_value' => (isset($component['extra']['zendesk_fid']))?$component['extra']['zendesk_fid']:'description',//default to description
+        );
+      }
+      array_unshift($form['#submit'], 'zendesk_webform_component_submit');
     }
-    array_unshift($form['#submit'], 'zendesk_webform_component_submit');
   }
 
-  if (preg_match("/webform_client_form_/i", $form_id)
-  && variable_get('zendesk_webform_api_enabled', FALSE)
-  && isset($form['#node']->zendesk_webform_group) && $form['#node']->zendesk_webform_group) {
-    array_unshift($form['#submit'], 'zendesk_webform_ticket_submit');
+  if (preg_match("/webform_client_form_/i", $form_id)) {
+    $node = $form['#node'];
+    if (zendesk_webform_api_enabled($node)) {
+      array_unshift($form['#submit'], 'zendesk_webform_ticket_submit');
+    }
   }
+}
+
+function zendesk_webform_configure_form_submit($form, &$form_state) {
+  $form['#node']->zendesk_webform_group = $form_state['values']['zendesk_webform_group'];
+}
+
+// checks if the api is enabled for the node language.
+// returns true or false
+function zendesk_webform_language_api_enabled($node) {
+  $defaults = variable_get('zendesk_api', array());
+  return isset($node->webform) && isset($defaults[$node->language]) && $defaults[$node->language]['status'];
+}
+
+// checks if the api is enabled for the node language and if a group has been
+// assigned, which indicates finally that the node uses the api
+// returns true or false
+function zendesk_webform_api_enabled($node) {
+  return zendesk_webform_language_api_enabled($node) && isset($node->zendesk_webform_group) && $node->zendesk_webform_group;
 }
 
 function zendesk_webform_component_submit($form, &$form_state) {
@@ -192,23 +258,10 @@ function zendesk_webform_component_submit($form, &$form_state) {
  * argument list.
  */
 function zendesk_webform_node_load($nodes, $types) {
-  // We can use $types to figure out if we need to process any of these nodes.
-  $our_types = array();
-  foreach ($types as $type) {
-    if (variable_get('zendesk_webform_api_enabled',FALSE) && $type=='webform') {
-      $our_types[] = $type;
-    }
-  }
-
-  // Now $our_types contains all the types from $types that we want
-  // to deal with. If it's empty, we can safely return.
-  if (!count($our_types)) {
-    return;
-  }
-
   // Now we need to make a list of revisions based on $our_types
+  $nids = array();
   foreach ($nodes as $node) {
-    if (in_array($node->type,$our_types) && isset($node->webform['components'])) {
+    if (zendesk_webform_language_api_enabled($node)) {
       $nids[]= $node->nid;
     }
   }
@@ -236,7 +289,7 @@ function zendesk_webform_node_load($nodes, $types) {
  * database inserts.
  */
 function zendesk_webform_node_insert($node) {
-  if (variable_get('zendesk_webform_api_enabled',FALSE) && isset($node->webform)) {
+  if (zendesk_webform_language_api_enabled($node)) {
     // Notice that we are ignoring any revision information using $node->nid
     db_insert('zendesk_webform_node')
     ->fields(array(
@@ -273,7 +326,7 @@ function zendesk_webform_node_delete($node) {
  * we update it. Otherwise, we call zendesk_webform_node_insert() to create one.
  */
 function zendesk_webform_node_update($node) {
-  if (variable_get('zendesk_webform_api_enabled', FALSE) && $node->type="webform") {
+  if (zendesk_webform_language_api_enabled($node)) {
       zendesk_webform_node_delete($node);
       zendesk_webform_node_insert($node);
   }
@@ -282,7 +335,7 @@ function zendesk_webform_node_update($node) {
 /**
  * helper function to create group list form
  */
-function zendesk_webform_list_group_field($default_value,$parent_group="") {
+function zendesk_webform_list_group_field($default_value) {
   $response = unserialize(variable_get('zendesk_webform_country_groups', FALSE));
   $group_tlds =  array();
   //iterate through the groups names and create parent list out of it
