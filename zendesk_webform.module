@@ -74,6 +74,7 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
   $zendesk_key = variable_get('zendesk_webform_api_key', '');
   $zendesk_url = variable_get('zendesk_webform_api_url', '');
   $zendesk_user = variable_get('zendesk_webform_api_user', '');
+
   $ch = curl_init();
   curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
   curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
@@ -148,15 +149,15 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
         }
       }
     }
-    $options[0] = "NA";
+
     //for each of the webform, show a select list of the zendesk fields
     //this is where we create direct association
     foreach ($node->webform['components'] as $cid => $component) {
       $form['components'][$cid]['zendesk_fid'] = array(
         '#type' => 'select',
         '#title' => t('Zendesk'),
-        '#options' => $options,
-        '#default_value' => (isset($component['zendesk_fid']))?$component['zendesk_fid']:'description',//default to description
+        '#options' => array(0 => 'None') + $options,
+        '#default_value' => (isset($component['extra']['zendesk_fid']))?$component['extra']['zendesk_fid']:'description',//default to description
       );
     }
     array_unshift($form['#submit'], 'zendesk_webform_component_submit');
@@ -169,15 +170,14 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
   }
 }
 
-
 function zendesk_webform_component_submit($form, &$form_state) {
   $node = node_load($form_state['values']['nid']);
   // Update all mandatory and weight values.
   $changes = FALSE;
   foreach ($node->webform['components'] as $cid => $component) {
-    if ($component['zendesk_fid'] != $form_state['values']['components'][$cid]['zendesk_fid'] ) {
+    if (!isset($component['extra']['zendesk_fid']) || $component['extra']['zendesk_fid'] != $form_state['values']['components'][$cid]['zendesk_fid'] ) {
       $changes = TRUE;
-      $node->webform['components'][$cid]['zendesk_fid'] =     $form_state['values']['components'][$cid]['zendesk_fid'];
+      $node->webform['components'][$cid]['extra']['zendesk_fid'] = $form_state['values']['components'][$cid]['zendesk_fid'];
     }
   }
   if ($changes) {
@@ -210,10 +210,6 @@ function zendesk_webform_node_load($nodes, $types) {
   foreach ($nodes as $node) {
     if (in_array($node->type,$our_types) && isset($node->webform['components'])) {
       $nids[]= $node->nid;
-      //set the default components zfid as 0
-      foreach ((array)$node->webform['components'] as $cid => $component) {
-        $node->webform['components'][$cid]['zendesk_fid'] = 0;
-      }
     }
   }
 
@@ -231,18 +227,6 @@ function zendesk_webform_node_load($nodes, $types) {
   foreach ($result as $record) {
     $nodes[$record->nid]->zendesk_webform_group = $record->zgid;
   }
-
-  //set up the default field id (surely there is an easier way of doing this)
-  //see if there is zfids available.
-  $component = db_select('zendesk_webform_component', 'e')
-  ->fields('e', array('nid', 'cid', 'zfid'))
-  ->where('e.nid IN (:nids)', array(':nids' => $nids))
-  ->execute();
-
-  //if there are any components and zfid, make the link now.
-  foreach ($components as $component) {
-    $nodes[$component->nid]->webform['components'][$component->cid]['zendesk_fid'] = $component->zfid;
-  }
 }
 
 /**
@@ -252,7 +236,7 @@ function zendesk_webform_node_load($nodes, $types) {
  * database inserts.
  */
 function zendesk_webform_node_insert($node) {
-  if (variable_get('zendesk_webform_api_enabled',FALSE) && $node->type="webform") {
+  if (variable_get('zendesk_webform_api_enabled',FALSE) && isset($node->webform)) {
     // Notice that we are ignoring any revision information using $node->nid
     db_insert('zendesk_webform_node')
     ->fields(array(
@@ -261,21 +245,6 @@ function zendesk_webform_node_insert($node) {
         'zgid' => $node->zendesk_webform_group,
     ))
     ->execute();
-
-    foreach ($node->webform['components'] as $cid => $component) {
-      $zfids[] = array(
-          'nid' => $node->nid,
-          'cid' => $cid,
-          'zfid' => $component['zendesk_fid'],
-      );
-    }
-
-    $query = db_insert('zendesk_webform_component')->fields(array('nid','cid', 'zfid'));
-
-    foreach ($zfids as $zfid) {
-      $query->values($zfid);
-    }
-    $query->execute();
   }
 }
 
@@ -288,9 +257,6 @@ function zendesk_webform_node_insert($node) {
 function zendesk_webform_node_delete($node) {
   // Notice that we're deleting even if the content type has no rating enabled.
   db_delete('zendesk_webform_node')
-    ->condition('nid', $node->nid)
-    ->execute();
-  db_delete('zendesk_webform_component')
     ->condition('nid', $node->nid)
     ->execute();
 }
@@ -312,7 +278,6 @@ function zendesk_webform_node_update($node) {
       zendesk_webform_node_insert($node);
   }
 }
-
 
 /**
  * helper function to create group list form
@@ -348,7 +313,7 @@ function zendesk_webform_list_group_field($default_value,$parent_group="") {
   $form['zendesk']['zendesk_webform_group'] = array(
     '#type' => 'select',
     '#title' => t(''),
-    '#options' => $group_tlds,
+    '#options' => array(0 => 'None') + $group_tlds,
     '#default_value' => $default_value,
     '#description' => t('Select the default country group for zendesk.'),
   );
