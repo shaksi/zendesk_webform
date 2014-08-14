@@ -485,7 +485,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
   $node = $form['#node'];
   //set the group
   foreach($form_state['webform']['component_tree']['children'] as $components) {
-    $zfid = $components['zendesk_fid'];
+    $zfid = $components['extra']['zendesk_fid'];
     $cname =$components['form_key'];
     if (isset($zendesk_fields->user[$zfid])) {
       //name can have multiple value so for now we will make it
