@@ -92,7 +92,7 @@ function zendesk_webform_language_admin_config_form($form, &$form_state, $lang) 
         '#type' => 'checkboxes',
         '#title' => t('Ticket fields'),
         '#options' => (array)$fields->ticket,
-        '#default_value' => (isset($defaults[$lang]['fields']['zendesk_webform_allowed_fields_ticket']) ? $defaults[$lang]['fields']['zendesk_webform_allowed_fields_ticket'] : array(),
+        '#default_value' => (isset($defaults[$lang]['fields']['zendesk_webform_allowed_fields_ticket'])) ? $defaults[$lang]['fields']['zendesk_webform_allowed_fields_ticket'] : array(),
         '#description' => t('This is list of all the fields available for zendesk ticket'),
       );
     }
