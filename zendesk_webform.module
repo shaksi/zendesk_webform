@@ -524,16 +524,20 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     }
     else {
       if ($zfid =='description') { //description can have multiple values
-        $ticket[$zfid] .= $values[$cname]."\n";
+        $ticket['comment']['body'] .= $values[$cname]."\n";
       }
-      else if ($zfid =='tags') { //description can have multiple values
+      else if ($zfid =='uploads') {
+
+        $ticket['comment']['uploads']= zendesk_webform_upload_files($values[$cname]);
+      }
+      else if ($zfid =='tags') { //tags can have multiple values
         $ticket[$zfid][]= $values[$cname];
       }
-      else if (is_numeric($zfid)){
+      else if (is_numeric($zfid) && $zfid !=0){
         $zval = strtolower($values[$cname]);
         $ticket['custom_fields'][] = array('id'=>$zfid, 'value'=>$zval);
       }
-      else {
+      else if ($zfid !="0") {
         $ticket[$zfid] = $values[$cname];
       }
     }
@@ -547,6 +551,18 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
   if (isset($response->error)) {
     watchdog('zendes_webform', t('An error happened while sending form values to zendesk message. Error:  %error.'), array('%error' => $response->error));
   }
+}
+
+/**
+ * takes file id and uploads files to zendesk return token to store with
+ * tickets
+ */
+function zendesk_webform_upload_files($fid) {
+  $file =file_load($fid);
+  $path = drupal_realpath($file->uri);
+  $response = zendesk_webform_api_call(array('filename' => $file->filename, 'binary-data'=>"@".$path, 'type'=>$file->filemime), 'uploads.json', "POST");
+  $token = $response->upload->token;
+  return $token;
 }
 
 function zendesk_webform_cron() {
