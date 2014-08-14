@@ -116,15 +116,15 @@ function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
         }
       }
     }
-
+    $options[0] = "NA";
     //for each of the webform, show a select list of the zendesk fields
     //this is where we create direct association
     foreach ($node->webform['components'] as $cid => $component) {
       $form['components'][$cid]['zendesk_fid'] = array(
         '#type' => 'select',
         '#title' => t('Zendesk'),
-        '#options' => (count($options)>0)?$options:array(0=>'NA'),
-        '#default_value' => ($component['zendesk_fid'])?$component['zendesk_fid']:'description',//default to description
+        '#options' => $options,
+        '#default_value' => (isset($component['zendesk_fid']))?$component['zendesk_fid']:'description',//default to description
       );
     }
     array_unshift($form['#submit'], 'zendesk_webform_component_submit');
@@ -185,10 +185,12 @@ function zendesk_webform_node_load($nodes, $types) {
 
   // Now we need to make a list of revisions based on $our_types
   foreach ($nodes as $node) {
-  // We are using the revision id instead of node id.
-    //set the default components zfid as 0
-    foreach ((array)$node->webform['components'] as $cid => $component) {
-      $node->webform['components'][$cid]['zendesk_fid'] = 0;
+    if (in_array($node->type,$our_types)) {
+      $nids[]= $node->nid;
+      //set the default components zfid as 0
+      foreach ((array)$node->webform['components'] as $cid => $component) {
+        $node->webform['components'][$cid]['zendesk_fid'] = 0;
+      }
     }
   }
 
@@ -353,7 +355,7 @@ $header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), 
 $rows = array();
 
 //if api is enabled and groupID is set, lets add zendesk column to the webform_component page.
-if (variable_get('zendesk_webform_api_enabled', FALSE) && $node->zendesk_webform_group >0){
+if (variable_get('zendesk_webform_api_enabled', FALSE) && isset($node->zendesk_webform_group)){
   $header = array(t('Label'), t('Type'), t('Value'), t('Mandatory'), t('Weight'), t('Zendesk'), array('data' => t('Operations'), 'colspan' => 4));
   $rows = array();
 }
@@ -415,7 +417,8 @@ if (!empty($node->webform['components'])) {
       ($component['value'] == '') ? '-' : $component['value'],
       drupal_render($form['components'][$cid]['mandatory']),
       drupal_render($form['components'][$cid]['cid']) . drupal_render($form['components'][$cid]['pid']) . drupal_render($form['components'][$cid]['weight']),
-drupal_render($form['components'][$cid]['zendesk_fid']),
+      isset($node->zendesk_webform_group)?
+drupal_render($form['components'][$cid]['zendesk_fid']).",":''.
       l(t('Edit'), 'node/' . $node->nid . '/webform/components/' . $cid, array('query' => drupal_get_destination())),
       l(t('Clone'), 'node/' . $node->nid . '/webform/components/' . $cid . '/clone', array('query' => drupal_get_destination())),
       l(t('Delete'), 'node/' . $node->nid . '/webform/components/' . $cid . '/delete', array('query' => drupal_get_destination())),
@@ -479,13 +482,14 @@ function _zendesk_webform_fields_cleanup() {
     }
   }
   if ($ticket->count >0) {
-    $fields->ticket["tags"] = "Ticket: Tags";
     foreach((array)$ticket->ticket_fields as $f) {
       //other than non removable fields use id
       //default fields we can use their name.
       $id = ($f->removable)? $f->id: $f->type;
       $fields->ticket[$id] = "Ticket: ".$f->title;
     }
+    $fields->ticket["tags"] = "Ticket: Tags";
+    $fields->ticket["uploads"] = "Ticket: Uploads";
   }
   return $fields;
 }
