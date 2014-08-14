@@ -73,6 +73,11 @@ function zendesk_webform_language_admin_config_form($form, &$form_state, $lang) 
         '#title' => t('Zendesk Fields'),
         '#collapsible' => TRUE,
         '#collapsed' => TRUE,
+        '#states' => array(
+          'visible' => array(
+            ':input[name="zendesk_api[' . $lang . '][status]"]' => array('checked' => TRUE),
+          ),
+        ),
       );
 
       $form['zendesk_api'][$lang]['fields']['zendesk_webform_allowed_fields_user']  = array(
