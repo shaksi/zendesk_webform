@@ -345,15 +345,8 @@ function zendesk_webform_list_group_field($default_value, $parent_group="") {
       @list($tld, $subgroup) = explode('.',$group->name);
       //we will only use forms that have a subgroup
       //any others we can ignore
-      if ($parent_group) {
-        if ($tld == $parent_group) {
-          $group_tlds[$group->id] = $subgroup;
-        }
-      }
-      else {
-        if ($subgroup) {
-          $group_tlds[$tld] = $tld;
-        }
+      if ($subgroup) {
+        $group_tlds[$tld][$group->id] = $subgroup;
       }
     }
   }
@@ -565,11 +558,11 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       else if ($zfid =='email') {
         $ticket['requester'][$zfid] = $values[$cname];
       }
-      else if ($zfid =='usr_gen_zip') {//UNIQUE: store the first 3chars of zip
+      else if ($zfid =='usr_gen_zip') {
         $ticket['requester']['user_fields'][$zfid] =  $values[$cname];
-        $short_zip = substr($values[$cname], 0, 5);
+        $short_zip = substr($values[$cname], 0, 2);
+        //UNIQUE: store the first 2chars of zip in the short zip field also
         $ticket['requester']['user_fields']['zip_short'] =  $short_zip;
-
       }
       else {
         $ticket['requester']['user_fields'][$zfid] =  $values[$cname];
