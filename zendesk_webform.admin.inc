@@ -63,6 +63,17 @@ function zendesk_webform_language_admin_config_form($form, &$form_state, $lang) 
       drupal_set_message(t('Zendesk returned the following error: "').$error.'"', 'error');
     }
 
+        //if all is configured and working, show the parent groups
+    //We should already have cached ticket/user fields & groups from
+    //zendesk_webform_cache_fields()
+    if ( variable_get('zendesk_webform_country_groups', FALSE)) {
+      $default_group  = variable_get('zendesk_webform_group', FALSE);
+      $zendesk_groups = zendesk_webform_list_group_field($default_group, '');
+      $zendesk_groups['zendesk']['#states'] = $show_only_if_api_true;
+      $zendesk_groups['zendesk']['zendesk_webform_group']=
+      array_push($form, $zendesk_groups);
+    }
+
     //list out all the user/tickets so that we can preselect the ones that will
     //be available to the user in the webform component area.
     $fields = _zendesk_webform_fields_cleanup();
