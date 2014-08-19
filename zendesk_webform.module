@@ -559,12 +559,6 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       else if ($zfid =='email') {
         $ticket['requester'][$zfid] = $values[$cname];
       }
-      else if ($zfid =='usr_gen_zip') {
-        $ticket['requester']['user_fields'][$zfid] =  $values[$cname];
-        $short_zip = substr($values[$cname], 0, 2);
-        //UNIQUE: store the first 2chars of zip in the short zip field also
-        $ticket['requester']['user_fields']['zip_short'] =  $short_zip;
-      }
       else {
         $ticket['requester']['user_fields'][$zfid] =  $values[$cname];
       }
@@ -592,6 +586,13 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       else if (is_numeric($zfid) && $zfid !=0){
         $zval = strtolower($values[$cname]);
         $ticket['custom_fields'][] = array('id' => $zfid, 'value' => $zval);
+        //area zipcode requires special treatment
+        if ($zfid =='24471191') {
+          $short_zip = "short_zip:".substr($zval, 0, 2);
+          //store the first 2chars of zip in the short tag field
+          //gives us an easy way to assign tickets to regions using triggers
+          $ticket['tags'][]=  $short_zip;
+        }
       }
       else if ($zfid) {
         $ticket[$zfid] = $values[$cname];
