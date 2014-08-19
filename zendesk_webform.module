@@ -579,7 +579,12 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
         }
       }
       else if ($zfid =='uploads') {
-        $ticket['comment']['uploads'][] = zendesk_webform_upload_files($values[$cname]);
+        if ($values[$cname] !=0) {
+          $token = zendesk_webform_upload_files($values[$cname]);
+          if ($token) {
+            $ticket['comment']['uploads'][] = $token;
+          }
+        }
       }
       else if ($zfid =='tags') { //tags can have multiple values
         $ticket[$zfid][]= $values[$cname];
