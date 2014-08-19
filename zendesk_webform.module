@@ -603,7 +603,8 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
 
   if (isset($response->error)) {
-    watchdog('zendesk_webform', t('An error happened while sending form values to zendesk message. Error:  %error.'), array('%error' => $response->error));
+    watchdog('zendesk_webform', t('An error occurred while sending form values to zendesk:  %error.'), array('%error' => json_encode($response)));
+
   }
 }
 
