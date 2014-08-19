@@ -290,7 +290,8 @@ function zendesk_webform_node_load($nodes, $types) {
  * database inserts.
  */
 function zendesk_webform_node_insert($node) {
-  if (zendesk_webform_language_api_enabled($node)) {
+  if (zendesk_webform_language_api_enabled($node)
+  && isSet($node->zendesk_webform_group)) {
     // Notice that we are ignoring any revision information using $node->nid
     db_insert('zendesk_webform_node')
     ->fields(array(
