@@ -600,6 +600,10 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     }
   }
 
+  //check if user already exists using their email, if they do
+  //update their user profile before creating the ticket.
+  zendesk_webform_requester_update($ticket)
+  
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
 
@@ -607,6 +611,47 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     watchdog('zendesk_webform', t('An error occurred while sending form values to zendesk:  %error.'), array('%error' => json_encode($response)));
 
   }
+}
+
+/**
+ * Check if user exists, using email provided.
+ * If user exists, update their info.
+ * $ticket array of ticket fields.
+ * returns boolean
+ */
+function zendesk_webform_requester_update($ticket) {
+  $name  = $ticket['requester']['name'];
+  $email = $ticket['requester']['email'];
+  $user_fields = $ticket['requester']['user_fields'];
+  //check for a user with the given email
+  $request = zendesk_webform_api_call('', "users/search.json?query=$email", 'GET');
+  //if a user exists count will be 1 (email is primary key)
+  if ($request->count) {
+    $user = $request->users['0'];
+    dpm($user->id);
+    $user->name  = $name;
+    $user->email = $email;
+    if(count($user_fields)>0) {
+      foreach($user_fields as $key => $value) {
+        $user->user_fields->$key = $value;
+      }
+    }
+    //use the user id as part of the end point
+    $endpoint = "users/{$user->id}.json";
+    //wrap the user object into user array and update the users info.
+    $response = zendesk_webform_api_call(array('user' => $user), $endpoint, 'PUT');
+    //if user object is not returned something has gone wrong.
+    if (isSet($response->user->id)){
+      $output = TRUE;
+    }
+    else {
+      $output = FALSE;
+    }
+  }
+  else {
+    $output = FALSE;
+  }
+  return $output;
 }
 
 /**
