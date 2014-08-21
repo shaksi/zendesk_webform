@@ -628,7 +628,6 @@ function zendesk_webform_requester_update($ticket) {
   //if a user exists count will be 1 (email is primary key)
   if ($request->count) {
     $user = $request->users['0'];
-    dpm($user->id);
     $user->name  = $name;
     $user->email = $email;
     if(count($user_fields)>0) {
