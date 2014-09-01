@@ -375,11 +375,6 @@ function template_preprocess_zendesk_webform_components_form(&$variables) {
   $form = $variables['form'];
   $node = $form['#node'];
 
-  if (!variable_get('zendesk_webform_api_enabled', FALSE) || !$node->zendesk_webform_group){
-    template_preprocess_webform_components_form($variables);
-    return;
-  }
-
   $form['components']['#attached']['library'][] = array('webform', 'admin');
 
   // TODO: Attach these. See http://drupal.org/node/732022.
