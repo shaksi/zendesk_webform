@@ -174,10 +174,8 @@ function zendesk_webform_admin_settings() {
  */
 function zendesk_webform_cache_fields($clear=FALSE) {
   //get list of current user_fields and cache them
-  dpm('cache hack');
   if (!variable_get('zendesk_webform_user_fields', FALSE) || $clear) {
     $user_fields = zendesk_webform_api_call('', 'user_fields.json','GET');
-    dpm($user_fields,'user fields');
     variable_set('zendesk_webform_user_fields', serialize($user_fields));
   }
 
