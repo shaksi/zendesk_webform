@@ -49,7 +49,7 @@ function zendesk_webform_language_admin_config_form($form, &$form_state, $lang) 
   //if zendesk has been enabled, we can now test the credentials
   //if the credentials are correct, show the parent groups. so that we can
   //associate the webforms with given groups subgroups later on.
-  if (variable_get('zendesk_webform_api_enabled', 0)){
+  if (isset($defaults[$lang]['status']) && $defaults[$lang]['status']){
     $response = zendesk_webform_api_call('', 'users/me.json');
 
     if (is_object($response) & !isset($response->error)) {
@@ -174,8 +174,10 @@ function zendesk_webform_admin_settings() {
  */
 function zendesk_webform_cache_fields($clear=FALSE) {
   //get list of current user_fields and cache them
+  dpm('cache hack');
   if (!variable_get('zendesk_webform_user_fields', FALSE) || $clear) {
     $user_fields = zendesk_webform_api_call('', 'user_fields.json','GET');
+    dpm($user_fields,'user fields');
     variable_set('zendesk_webform_user_fields', serialize($user_fields));
   }
 
