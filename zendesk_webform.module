@@ -116,8 +116,8 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
   $zendesk_user = variable_get('zendesk_webform_api_user', '');
 
   $ch = curl_init();
-  #curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
-  #curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
   curl_setopt($ch, CURLOPT_MAXREDIRS, 10);
   curl_setopt($ch, CURLOPT_URL, $zendesk_url . '/api/v2/' . $command);
@@ -148,10 +148,25 @@ function zendesk_webform_api_call($data, $command, $type="POST") {
   return json_decode($output);
 }
 
+/*
+ * Submit function for the component edit form
+ * We need to keep the zendesk fid.
+ */
+function zendesk_webform_component_form_submit($form, &$form_state) {
+  $cid = $form_state['values']['cid'];
+  $node = node_load($form_state['values']['nid']);
+  if (isset($node->webform['components'][$cid]['extra']['zendesk_fid'])) {
+    $form_state['values']['extra']['zendesk_fid'] = $node->webform['components'][$cid]['extra']['zendesk_fid'];
+  }
+}
+
 /**
  * Implements hook_form_alter().
  */
 function zendesk_webform_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'webform_component_edit_form') {
+    array_unshift($form['#submit'], 'zendesk_webform_component_form_submit');
+  }
   //add the zendesk group selection to the webform node.
   //When that form is submitted we use the groupID to forward to the right
   //zendesk group
