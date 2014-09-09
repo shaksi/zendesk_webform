@@ -632,7 +632,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
 function zendesk_webform_requester_update($ticket) {
   $name  = $ticket['requester']['name'];
   $email = $ticket['requester']['email'];
-  $user_fields = $ticket['requester']['user_fields'];
+  $user_fields = isset($ticket['requester']['user_fields']) ? $ticket['requester']['user_fields'] : array();
   //check for a user with the given email
   $request = zendesk_webform_api_call('', "users/search.json?query=$email", 'GET');
   //if a user exists count will be 1 (email is primary key)
