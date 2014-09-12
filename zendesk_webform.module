@@ -613,11 +613,11 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     }
   }
   $ticket['comment']['body'] .= $main_msg;
-  //set the recepient address if one has been provided.
+  //set the recipient address if one has been provided.
   $lang = $node->language;
   $zapi = variable_get('zendesk_api', array());
   if($zapi[$lang]['email']) {
-    $ticket['recepient'] = $zapi[$lang]['email'];
+    $ticket['recipient'] = $zapi[$lang]['email'];
   }
   //check if user already exists using their email, if they do
   //update their user profile before creating the ticket.
