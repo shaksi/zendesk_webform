@@ -46,6 +46,18 @@ function zendesk_webform_language_admin_config_form($form, &$form_state, $lang) 
     '#description' => t('Check this box to enable the zendesk functionallities for webforms in this specific language.'),
   );
 
+  $form['zendesk_api'][$lang]['email'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Via Email'),
+    '#default_value' => (isset($defaults[$lang]['email'])) ? $defaults[$lang]['email'] : 0,
+    '#description' => t('This is the support email, that is being used in Zendesk'),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="zendesk_api[' . $lang . '][status]"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
   //if zendesk has been enabled, we can now test the credentials
   //if the credentials are correct, show the parent groups. so that we can
   //associate the webforms with given groups subgroups later on.

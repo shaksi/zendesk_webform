@@ -578,7 +578,10 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
         if (is_array($values[$cname])) {
           $values[$cname] = implode(', ', $values[$cname]);
         }
-        if (trim($values[$cname])) {
+        if (in_array($component['name'], array('nachricht', 'message'))) {
+          $main_msg = $values[$cname]."\n";
+        }
+        else if (trim($values[$cname])) {
           $ticket['comment']['body'] .= $component['name'] . ': ' . $values[$cname]."\n";
         }
       }
@@ -609,7 +612,13 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
   }
-
+  $ticket['comment']['body'] .= $main_msg;
+  //set the recepient address if one has been provided.
+  $lang = $node->language;
+  $zapi = variable_get('zendesk_api', array());
+  if($zapi[$lang]['email']) {
+    $ticket['recepient'] = $zapi[$lang]['email'];
+  }
   //check if user already exists using their email, if they do
   //update their user profile before creating the ticket.
   zendesk_webform_requester_update($ticket);
