@@ -578,7 +578,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
         if (is_array($values[$cname])) {
           $values[$cname] = implode(', ', $values[$cname]);
         }
-        if (in_array($component['name'], array('nachricht', 'message'))) {
+        if (in_array(strtolower($component['name']), array('nachricht', 'message'))) {
           $main_msg = $values[$cname]."\n";
         }
         else if (trim($values[$cname])) {
