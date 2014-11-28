@@ -515,6 +515,9 @@ function _zendesk_webform_fields_cleanup() {
     //that dont get shown in the fields list
     $fields->user["name"]  = "User: Name";
     $fields->user["email"] = "User: Email";
+    $fields->user["phone_number"] = "User: Phone Number";
+    $fields->user["twitter"] = "User: twitter handle";
+
     foreach((array)$user->user_fields as $f){
       $fields->user[$f->key] = "User: ".$f->title;
     }
@@ -549,6 +552,8 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     'requester' => array(
       'name'  => '',
       'email' => '',
+      'phone_number' => '',
+      'twitter' => '',
     ),
     'comment' => array('body' => ''),
   );
