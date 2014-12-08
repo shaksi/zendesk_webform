@@ -621,7 +621,6 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
   }
-  print_r($ticket);
 
   $ticket['comment']['body'] .= $main_msg;
   //set the recipient address if one has been provided.
@@ -636,13 +635,11 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
 
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
-  // print_r($response);
 
   if (isset($response->error)) {
     watchdog('zendesk_webform', t('An error occurred while sending form values to zendesk:  %error.'), array('%error' => json_encode($response)));
 
   }
-  exit;
 }
 
 /**
