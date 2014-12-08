@@ -515,7 +515,7 @@ function _zendesk_webform_fields_cleanup() {
     //that dont get shown in the fields list
     $fields->user["name"]  = "User: Name";
     $fields->user["email"] = "User: Email";
-    $fields->user["phone_number"] = "User: Phone Number";
+    $fields->user["phone"] = "User: Phone Number";
     $fields->user["twitter"] = "User: twitter handle";
 
     foreach((array)$user->user_fields as $f){
@@ -552,9 +552,10 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
     'requester' => array(
       'name'  => '',
       'email' => '',
-      'phone_number' => '',
+      'phone' => '',
       'twitter' => '',
     ),
+
     'comment' => array('body' => ''),
   );
 
@@ -572,6 +573,9 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
         trim($ticket['requester'][$zfid]);
       }
       else if ($zfid =='email') {
+        $ticket['requester'][$zfid] = $values[$cname];
+      }
+      else if ($zfid =='phone'  ) {
         $ticket['requester'][$zfid] = $values[$cname];
       }
       else {
@@ -617,6 +621,8 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
       }
     }
   }
+  print_r($ticket);
+
   $ticket['comment']['body'] .= $main_msg;
   //set the recipient address if one has been provided.
   $lang = $node->language;
@@ -630,11 +636,13 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
 
   // Wrap the ticket array in yet another array and call the API.
   $response = zendesk_webform_api_call(array('ticket' => $ticket), 'tickets.json');
+  // print_r($response);
 
   if (isset($response->error)) {
     watchdog('zendesk_webform', t('An error occurred while sending form values to zendesk:  %error.'), array('%error' => json_encode($response)));
 
   }
+  exit;
 }
 
 /**
@@ -646,6 +654,7 @@ function zendesk_webform_ticket_submit($form, &$form_state) {
 function zendesk_webform_requester_update($ticket) {
   $name  = $ticket['requester']['name'];
   $email = $ticket['requester']['email'];
+  $phone = $ticket['requester']['phone'];
   $user_fields = isset($ticket['requester']['user_fields']) ? $ticket['requester']['user_fields'] : array();
   //check for a user with the given email
   $request = zendesk_webform_api_call('', "users/search.json?query=$email", 'GET');
@@ -654,6 +663,7 @@ function zendesk_webform_requester_update($ticket) {
     $user = $request->users['0'];
     $user->name  = $name;
     $user->email = $email;
+    $user->phone = $phone;
     if(count($user_fields)>0) {
       foreach($user_fields as $key => $value) {
         $user->user_fields->$key = $value;
@@ -737,4 +747,9 @@ function zendesk_webform_upload_files($fid) {
 function zendesk_webform_cron() {
   module_load_include('inc', 'zendesk_webform', 'zendesk_webform.admin');
   return zendesk_webform_cache_fields(TRUE);
+}
+
+
+function zendesk_webform_update_identities($userid) {
+
 }
